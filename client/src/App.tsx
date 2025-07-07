@@ -28,73 +28,22 @@ function App() {
   // Load data on component mount
   const loadData = useCallback(async () => {
     try {
-      await Promise.all([
+      const [purchaseRequestsResult, usersResult] = await Promise.all([
         trpc.getPurchaseRequests.query(),
         trpc.getUsers.query()
       ]);
       
-      // Since handlers return empty arrays, using sample data for demonstration
-      const sampleUsers: User[] = [
-        { id: 1, email: 'alice@company.com', name: 'Alice Johnson', role: 'employee', created_at: new Date('2024-01-15') },
-        { id: 2, email: 'bob@company.com', name: 'Bob Smith', role: 'employee', created_at: new Date('2024-01-16') },
-        { id: 3, email: 'carol@company.com', name: 'Carol Davis', role: 'approver', created_at: new Date('2024-01-10') },
-        { id: 4, email: 'dave@company.com', name: 'Dave Wilson', role: 'approver', created_at: new Date('2024-01-12') }
-      ];
+      setPurchaseRequests(purchaseRequestsResult);
+      setUsers(usersResult);
       
-      const sampleRequests: PurchaseRequest[] = [
-        {
-          id: 1,
-          employee_id: 1,
-          ebay_url: 'https://www.ebay.com/itm/123456789',
-          amazon_asin: 'B08N5WRWNW',
-          item_name: 'Wireless Bluetooth Headphones',
-          item_description: 'Premium noise-cancelling headphones with 30-hour battery life',
-          item_price: 199.99,
-          item_images: ['https://example.com/image1.jpg', 'https://example.com/image2.jpg'],
-          status: 'pending',
-          approver_id: null,
-          approved_at: null,
-          created_at: new Date('2024-01-20'),
-          updated_at: new Date('2024-01-20')
-        },
-        {
-          id: 2,
-          employee_id: 2,
-          ebay_url: 'https://www.ebay.com/itm/987654321',
-          amazon_asin: 'B07XJ8C8F5',
-          item_name: 'Ergonomic Office Chair',
-          item_description: 'Adjustable height office chair with lumbar support',
-          item_price: 299.99,
-          item_images: ['https://example.com/chair1.jpg'],
-          status: 'approved',
-          approver_id: 3,
-          approved_at: new Date('2024-01-19'),
-          created_at: new Date('2024-01-18'),
-          updated_at: new Date('2024-01-19')
-        },
-        {
-          id: 3,
-          employee_id: 1,
-          ebay_url: 'https://www.ebay.com/itm/456789123',
-          amazon_asin: 'B09JQCM9P7',
-          item_name: 'Mechanical Keyboard',
-          item_description: 'RGB backlit mechanical keyboard with blue switches',
-          item_price: 129.99,
-          item_images: ['https://example.com/keyboard1.jpg'],
-          status: 'rejected',
-          approver_id: 4,
-          approved_at: new Date('2024-01-17'),
-          created_at: new Date('2024-01-16'),
-          updated_at: new Date('2024-01-17')
-        }
-      ];
-      
-      setPurchaseRequests(sampleRequests);
-      setUsers(sampleUsers);
-      
-      // Set current user (for demo purposes, using first employee)
-      setCurrentUser(sampleUsers[0]);
-      setFormData(prev => ({ ...prev, employee_id: sampleUsers[0].id }));
+      // Find the first employee user and set as current user
+      const employeeUser = usersResult.find((user: User) => user.role === 'employee');
+      if (employeeUser) {
+        setCurrentUser(employeeUser);
+        setFormData(prev => ({ ...prev, employee_id: employeeUser.id }));
+      } else {
+        setCurrentUser(null);
+      }
     } catch (error) {
       console.error('Failed to load data:', error);
     }
@@ -110,27 +59,14 @@ function App() {
 
     setIsLoading(true);
     try {
-      // Real API call would enrich item data
+      // Submit the request - backend will handle enrichment
       await trpc.createPurchaseRequest.mutate(formData);
       
-      // Simulate enriched data for demonstration
-      const newRequest: PurchaseRequest = {
-        id: Date.now(),
-        employee_id: formData.employee_id,
-        ebay_url: formData.ebay_url,
-        amazon_asin: formData.amazon_asin,
-        item_name: 'Item Name (Auto-populated)',
-        item_description: 'Item description fetched from Amazon API',
-        item_price: 99.99,
-        item_images: ['https://example.com/stub-image.jpg'],
-        status: 'pending',
-        approver_id: null,
-        approved_at: null,
-        created_at: new Date(),
-        updated_at: new Date()
-      };
+      // Refresh the list of purchase requests from the server
+      const updatedRequests = await trpc.getPurchaseRequests.query();
+      setPurchaseRequests(updatedRequests);
       
-      setPurchaseRequests((prev: PurchaseRequest[]) => [newRequest, ...prev]);
+      // Reset form
       setFormData({
         employee_id: currentUser.id,
         ebay_url: '',
@@ -445,7 +381,7 @@ function App() {
         {/* Footer */}
         <div className="mt-8 pt-4 border-t-2 border-black">
           <p className="text-center font-mono text-sm text-gray-500">
-            ⚠️ DEMO MODE: Using sample data due to placeholder implementations
+            PURCHASE REQUEST APPROVAL SYSTEM
           </p>
         </div>
       </div>

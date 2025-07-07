@@ -36,10 +36,13 @@ describe('createPurchaseRequest', () => {
     expect(result.employee_id).toEqual(testUser.id);
     expect(result.ebay_url).toEqual('https://www.ebay.com/itm/123456789');
     expect(result.amazon_asin).toEqual('B08N5WRWNW');
-    expect(result.item_name).toBeNull();
-    expect(result.item_description).toBeNull();
-    expect(result.item_price).toBeNull();
-    expect(result.item_images).toBeNull();
+    
+    // Item details should be enriched (no longer null)
+    expect(result.item_name).toEqual('Product Details Pending for ASIN: B08N5WRWNW');
+    expect(result.item_description).toEqual('Product details will be automatically fetched from an external API (e.g., Keepa) once integrated.');
+    expect(result.item_price).toEqual(0);
+    expect(result.item_images).toEqual(['https://via.placeholder.com/150?text=No+Image']);
+    
     expect(result.status).toEqual('pending');
     expect(result.approver_id).toBeNull();
     expect(result.approved_at).toBeNull();
@@ -81,10 +84,13 @@ describe('createPurchaseRequest', () => {
     expect(savedRequest.employee_id).toEqual(testUser.id);
     expect(savedRequest.ebay_url).toEqual('https://www.ebay.com/itm/123456789');
     expect(savedRequest.amazon_asin).toEqual('B08N5WRWNW');
-    expect(savedRequest.item_name).toBeNull();
-    expect(savedRequest.item_description).toBeNull();
-    expect(savedRequest.item_price).toBeNull();
-    expect(savedRequest.item_images).toBeNull();
+    
+    // Item details should be enriched (no longer null)
+    expect(savedRequest.item_name).toEqual('Product Details Pending for ASIN: B08N5WRWNW');
+    expect(savedRequest.item_description).toEqual('Product details will be automatically fetched from an external API (e.g., Keepa) once integrated.');
+    expect(savedRequest.item_price ? parseFloat(savedRequest.item_price) : 0).toEqual(0); // Database stores as string, convert back
+    expect(savedRequest.item_images).toEqual(['https://via.placeholder.com/150?text=No+Image']);
+    
     expect(savedRequest.status).toEqual('pending');
     expect(savedRequest.approver_id).toBeNull();
     expect(savedRequest.approved_at).toBeNull();

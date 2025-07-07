@@ -2,40 +2,18 @@
 import { type ItemEnrichmentData } from '../schema';
 
 export const enrichItemData = async (amazonAsin: string): Promise<ItemEnrichmentData> => {
-  try {
-    // Validate ASIN format (basic validation)
-    if (!amazonAsin || amazonAsin.length < 10) {
-      throw new Error('Invalid Amazon ASIN format');
-    }
+  // This is a placeholder for actual external API integration (e.g., Keepa API).
+  // In a real application, you would make an HTTP request to the Keepa API here,
+  // handle authentication, rate limits, and parse the real product data.
+  // API keys and secure handling of credentials would be required.
 
-    // In a real implementation, this would call an external API like Keepa
-    // For now, we'll simulate API behavior with realistic mock data
-    
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 100));
+  console.warn(`Enrichment requested for ASIN: ${amazonAsin}. Real API not integrated.`);
 
-    // Mock enriched data based on ASIN
-    const mockData: ItemEnrichmentData = {
-      name: `Product ${amazonAsin}`,
-      description: `High-quality product with ASIN ${amazonAsin}. This item offers excellent value and performance for its category.`,
-      price: Math.round((Math.random() * 100 + 10) * 100) / 100, // Random price between $10-$110
-      images: [
-        `https://example.com/images/${amazonAsin}_1.jpg`,
-        `https://example.com/images/${amazonAsin}_2.jpg`,
-        `https://example.com/images/${amazonAsin}_3.jpg`
-      ]
-    };
-
-    return mockData;
-  } catch (error) {
-    console.error('Item enrichment failed:', error);
-    
-    // Provide fallback data if API call fails
-    return {
-      name: `Product ${amazonAsin}`,
-      description: 'Product details could not be retrieved at this time.',
-      price: 0,
-      images: []
-    };
-  }
+  // Return a default, non-random placeholder data structure.
+  return {
+    name: `Product Details Pending for ASIN: ${amazonAsin}`,
+    description: 'Product details will be automatically fetched from an external API (e.g., Keepa) once integrated.',
+    price: 0, // Default to 0 or null if prices are not available
+    images: ['https://via.placeholder.com/150?text=No+Image'] // Placeholder image
+  };
 };
