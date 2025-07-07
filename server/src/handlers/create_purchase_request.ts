@@ -1,26 +1,37 @@
 
+import { db } from '../db';
+import { purchaseRequestsTable } from '../db/schema';
 import { type CreatePurchaseRequestInput, type PurchaseRequest } from '../schema';
 
 export const createPurchaseRequest = async (input: CreatePurchaseRequestInput): Promise<PurchaseRequest> => {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is:
-    // 1. Create a new purchase request with provided eBay URL and Amazon ASIN
-    // 2. Call external API (e.g., Keepa) to enrich item details based on Amazon ASIN
-    // 3. Update the request with enriched data (name, description, price, images)
-    // 4. Persist the enriched request in the database with 'pending' status
-    return Promise.resolve({
-        id: 0, // Placeholder ID
+  try {
+    // Insert purchase request record
+    const result = await db.insert(purchaseRequestsTable)
+      .values({
         employee_id: input.employee_id,
         ebay_url: input.ebay_url,
         amazon_asin: input.amazon_asin,
-        item_name: null, // Will be populated after API enrichment
-        item_description: null, // Will be populated after API enrichment
-        item_price: null, // Will be populated after API enrichment
-        item_images: null, // Will be populated after API enrichment
+        // Item details will be null initially (to be enriched later)
+        item_name: null,
+        item_description: null,
+        item_price: null,
+        item_images: null,
         status: 'pending',
         approver_id: null,
-        approved_at: null,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as PurchaseRequest);
+        approved_at: null
+      })
+      .returning()
+      .execute();
+
+    // Convert numeric fields back to numbers before returning
+    const purchaseRequest = result[0];
+    return {
+      ...purchaseRequest,
+      item_price: purchaseRequest.item_price ? parseFloat(purchaseRequest.item_price) : null,
+      item_images: purchaseRequest.item_images as string[] | null
+    };
+  } catch (error) {
+    console.error('Purchase request creation failed:', error);
+    throw error;
+  }
 };

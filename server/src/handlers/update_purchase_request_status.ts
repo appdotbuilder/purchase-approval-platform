@@ -1,27 +1,36 @@
 
+import { db } from '../db';
+import { purchaseRequestsTable } from '../db/schema';
+import { eq } from 'drizzle-orm';
 import { type UpdatePurchaseRequestStatusInput, type PurchaseRequest } from '../schema';
 
 export const updatePurchaseRequestStatus = async (input: UpdatePurchaseRequestStatusInput): Promise<PurchaseRequest> => {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is:
-    // 1. Update the status of a purchase request to 'approved' or 'rejected'
-    // 2. Set the approver_id to track who made the decision
-    // 3. Set approved_at timestamp when status changes from pending
-    // 4. Update the updated_at timestamp
-    // 5. Return the updated purchase request
-    return Promise.resolve({
-        id: input.id,
-        employee_id: 0, // Placeholder
-        ebay_url: '', // Placeholder
-        amazon_asin: '', // Placeholder
-        item_name: null,
-        item_description: null,
-        item_price: null,
-        item_images: null,
+  try {
+    // Update the purchase request status
+    const result = await db.update(purchaseRequestsTable)
+      .set({
         status: input.status,
         approver_id: input.approver_id,
-        approved_at: new Date(),
-        created_at: new Date(),
+        approved_at: new Date(), // Set timestamp when status changes
         updated_at: new Date()
-    } as PurchaseRequest);
+      })
+      .where(eq(purchaseRequestsTable.id, input.id))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`Purchase request with id ${input.id} not found`);
+    }
+
+    // Convert numeric fields back to numbers before returning
+    const purchaseRequest = result[0];
+    return {
+      ...purchaseRequest,
+      item_price: purchaseRequest.item_price ? parseFloat(purchaseRequest.item_price) : null,
+      item_images: purchaseRequest.item_images as string[] | null
+    };
+  } catch (error) {
+    console.error('Purchase request status update failed:', error);
+    throw error;
+  }
 };

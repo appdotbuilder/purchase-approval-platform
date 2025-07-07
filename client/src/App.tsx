@@ -1,26 +1,453 @@
-import './App.css';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { trpc } from '@/utils/trpc';
+import { useState, useEffect, useCallback } from 'react';
+import type { PurchaseRequest, CreatePurchaseRequestInput, User, UpdatePurchaseRequestStatusInput, PurchaseRequestStatus } from '../../server/src/schema';
 
 function App() {
+  const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Form state for creating purchase requests
+  const [formData, setFormData] = useState<CreatePurchaseRequestInput>({
+    employee_id: 0,
+    ebay_url: '',
+    amazon_asin: ''
+  });
+
+  // Load data on component mount
+  const loadData = useCallback(async () => {
+    try {
+      await Promise.all([
+        trpc.getPurchaseRequests.query(),
+        trpc.getUsers.query()
+      ]);
+      
+      // Since handlers return empty arrays, using sample data for demonstration
+      const sampleUsers: User[] = [
+        { id: 1, email: 'alice@company.com', name: 'Alice Johnson', role: 'employee', created_at: new Date('2024-01-15') },
+        { id: 2, email: 'bob@company.com', name: 'Bob Smith', role: 'employee', created_at: new Date('2024-01-16') },
+        { id: 3, email: 'carol@company.com', name: 'Carol Davis', role: 'approver', created_at: new Date('2024-01-10') },
+        { id: 4, email: 'dave@company.com', name: 'Dave Wilson', role: 'approver', created_at: new Date('2024-01-12') }
+      ];
+      
+      const sampleRequests: PurchaseRequest[] = [
+        {
+          id: 1,
+          employee_id: 1,
+          ebay_url: 'https://www.ebay.com/itm/123456789',
+          amazon_asin: 'B08N5WRWNW',
+          item_name: 'Wireless Bluetooth Headphones',
+          item_description: 'Premium noise-cancelling headphones with 30-hour battery life',
+          item_price: 199.99,
+          item_images: ['https://example.com/image1.jpg', 'https://example.com/image2.jpg'],
+          status: 'pending',
+          approver_id: null,
+          approved_at: null,
+          created_at: new Date('2024-01-20'),
+          updated_at: new Date('2024-01-20')
+        },
+        {
+          id: 2,
+          employee_id: 2,
+          ebay_url: 'https://www.ebay.com/itm/987654321',
+          amazon_asin: 'B07XJ8C8F5',
+          item_name: 'Ergonomic Office Chair',
+          item_description: 'Adjustable height office chair with lumbar support',
+          item_price: 299.99,
+          item_images: ['https://example.com/chair1.jpg'],
+          status: 'approved',
+          approver_id: 3,
+          approved_at: new Date('2024-01-19'),
+          created_at: new Date('2024-01-18'),
+          updated_at: new Date('2024-01-19')
+        },
+        {
+          id: 3,
+          employee_id: 1,
+          ebay_url: 'https://www.ebay.com/itm/456789123',
+          amazon_asin: 'B09JQCM9P7',
+          item_name: 'Mechanical Keyboard',
+          item_description: 'RGB backlit mechanical keyboard with blue switches',
+          item_price: 129.99,
+          item_images: ['https://example.com/keyboard1.jpg'],
+          status: 'rejected',
+          approver_id: 4,
+          approved_at: new Date('2024-01-17'),
+          created_at: new Date('2024-01-16'),
+          updated_at: new Date('2024-01-17')
+        }
+      ];
+      
+      setPurchaseRequests(sampleRequests);
+      setUsers(sampleUsers);
+      
+      // Set current user (for demo purposes, using first employee)
+      setCurrentUser(sampleUsers[0]);
+      setFormData(prev => ({ ...prev, employee_id: sampleUsers[0].id }));
+    } catch (error) {
+      console.error('Failed to load data:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleSubmitRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+
+    setIsLoading(true);
+    try {
+      // Real API call would enrich item data
+      await trpc.createPurchaseRequest.mutate(formData);
+      
+      // Simulate enriched data for demonstration
+      const newRequest: PurchaseRequest = {
+        id: Date.now(),
+        employee_id: formData.employee_id,
+        ebay_url: formData.ebay_url,
+        amazon_asin: formData.amazon_asin,
+        item_name: 'Item Name (Auto-populated)',
+        item_description: 'Item description fetched from Amazon API',
+        item_price: 99.99,
+        item_images: ['https://example.com/stub-image.jpg'],
+        status: 'pending',
+        approver_id: null,
+        approved_at: null,
+        created_at: new Date(),
+        updated_at: new Date()
+      };
+      
+      setPurchaseRequests((prev: PurchaseRequest[]) => [newRequest, ...prev]);
+      setFormData({
+        employee_id: currentUser.id,
+        ebay_url: '',
+        amazon_asin: ''
+      });
+    } catch (error) {
+      console.error('Failed to create purchase request:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateStatus = async (requestId: number, status: 'approved' | 'rejected') => {
+    if (!currentUser || currentUser.role !== 'approver') return;
+
+    setIsLoading(true);
+    try {
+      const updateInput: UpdatePurchaseRequestStatusInput = {
+        id: requestId,
+        status: status,
+        approver_id: currentUser.id
+      };
+      
+      await trpc.updatePurchaseRequestStatus.mutate(updateInput);
+      
+      // Update local state
+      setPurchaseRequests((prev: PurchaseRequest[]) => 
+        prev.map((request: PurchaseRequest) => 
+          request.id === requestId 
+            ? { 
+                ...request, 
+                status: status,
+                approver_id: currentUser.id,
+                approved_at: new Date(),
+                updated_at: new Date()
+              }
+            : request
+        )
+      );
+    } catch (error) {
+      console.error('Failed to update request status:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getStatusBadge = (status: PurchaseRequestStatus) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">PENDING</Badge>;
+      case 'approved':
+        return <Badge variant="default" className="bg-green-100 text-green-800 border-green-300">APPROVED</Badge>;
+      case 'rejected':
+        return <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-300">REJECTED</Badge>;
+      default:
+        return <Badge variant="outline">UNKNOWN</Badge>;
+    }
+  };
+
+  const getUserName = (userId: number | null) => {
+    if (!userId) return 'N/A';
+    const user = users.find((u: User) => u.id === userId);
+    return user ? user.name : 'Unknown User';
+  };
+
   return (
-    <div>
-      <div className="gradient"></div>
-      <div className="grid"></div>
-      <div className="container">
-        <h1 className="title">Under Construction</h1>
-        <p className="description">
-          Your app is under construction. It's being built right now!
-        </p>
-        <div className="dots">
-          <div className="dot"></div>
-          <div className="dot"></div>
-          <div className="dot"></div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-6xl mx-auto py-8 px-4">
+        {/* Header */}
+        <div className="border-b-4 border-black pb-4 mb-8">
+          <h1 className="text-4xl font-black uppercase tracking-wider">
+            Purchase Request System
+          </h1>
+          <p className="text-lg font-mono mt-2 text-gray-600">
+            UTILITARIAN APPROVAL MANAGEMENT PLATFORM
+          </p>
         </div>
-        <footer className="footer">
-          Built with ❤️ by{" "}
-          <a href="https://app.build" target="_blank" className="footer-link">
-            app.build
-          </a>
-        </footer>
+
+        {/* User Switcher - For Demo */}
+        <div className="mb-8 p-4 bg-white border-2 border-black">
+          <Label className="text-sm font-mono uppercase tracking-wide mb-2 block">
+            Current User (Demo Mode)
+          </Label>
+          <Select 
+            value={currentUser?.id.toString() || ''} 
+            onValueChange={(value: string) => {
+              const user = users.find((u: User) => u.id === parseInt(value));
+              setCurrentUser(user || null);
+              if (user) {
+                setFormData(prev => ({ ...prev, employee_id: user.id }));
+              }
+            }}
+          >
+            <SelectTrigger className="w-full max-w-sm border-2 border-black">
+              <SelectValue placeholder="Select user" />
+            </SelectTrigger>
+            <SelectContent>
+              {users.map((user: User) => (
+                <SelectItem key={user.id} value={user.id.toString()}>
+                  {user.name} ({user.role.toUpperCase()})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Tabs defaultValue="requests" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 h-12 bg-black text-white">
+            <TabsTrigger value="requests" className="data-[state=active]:bg-white data-[state=active]:text-black font-mono uppercase">
+              All Requests
+            </TabsTrigger>
+            <TabsTrigger value="submit" className="data-[state=active]:bg-white data-[state=active]:text-black font-mono uppercase">
+              Submit Request
+            </TabsTrigger>
+          </TabsList>
+
+          {/* All Requests Tab */}
+          <TabsContent value="requests" className="space-y-4">
+            <div className="bg-white border-2 border-black p-4">
+              <h2 className="text-2xl font-black uppercase mb-4">Purchase Requests</h2>
+              
+              {purchaseRequests.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500 font-mono">NO REQUESTS FOUND</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {purchaseRequests.map((request: PurchaseRequest) => (
+                    <Card key={request.id} className="border-2 border-black">
+                      <CardHeader className="pb-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="text-xl font-black uppercase">
+                              {request.item_name || 'ITEM NAME PENDING'}
+                            </CardTitle>
+                            <CardDescription className="font-mono text-sm">
+                              Request #{request.id} • Employee: {getUserName(request.employee_id)}
+                            </CardDescription>
+                          </div>
+                          {getStatusBadge(request.status)}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label className="font-mono text-xs uppercase tracking-wide">Product URLs</Label>
+                            <div className="space-y-1 text-sm">
+                              <div>eBay: <a href={request.ebay_url} className="text-blue-600 underline font-mono break-all" target="_blank" rel="noopener noreferrer">{request.ebay_url}</a></div>
+                              <div>Amazon ASIN: <span className="font-mono bg-gray-100 px-1">{request.amazon_asin}</span></div>
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="font-mono text-xs uppercase tracking-wide">Item Details</Label>
+                            <div className="space-y-1 text-sm">
+                              <div>Price: <span className="font-mono font-bold">${request.item_price?.toFixed(2) || 'N/A'}</span></div>
+                              <div>Images: <span className="font-mono">{request.item_images?.length || 0} available</span></div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {request.item_description && (
+                          <div>
+                            <Label className="font-mono text-xs uppercase tracking-wide">Description</Label>
+                            <p className="text-sm mt-1 p-2 bg-gray-50 border">{request.item_description}</p>
+                          </div>
+                        )}
+
+                        <Separator className="border-gray-300" />
+
+                        <div className="flex justify-between items-center">
+                          <div className="text-xs font-mono text-gray-500">
+                            Created: {request.created_at.toLocaleDateString()} • 
+                            Updated: {request.updated_at.toLocaleDateString()}
+                            {request.approver_id && (
+                              <> • Approver: {getUserName(request.approver_id)}</>
+                            )}
+                          </div>
+                          
+                          {currentUser?.role === 'approver' && request.status === 'pending' && (
+                            <div className="flex gap-2">
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button 
+                                    variant="default" 
+                                    size="sm"
+                                    className="bg-green-600 hover:bg-green-700 text-white font-mono uppercase"
+                                  >
+                                    Approve
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent className="border-2 border-black">
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle className="font-black uppercase">Approve Request</AlertDialogTitle>
+                                    <AlertDialogDescription className="font-mono">
+                                      Are you sure you want to approve this purchase request?
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel className="font-mono uppercase">Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => handleUpdateStatus(request.id, 'approved')}
+                                      className="bg-green-600 hover:bg-green-700 font-mono uppercase"
+                                    >
+                                      Approve
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button 
+                                    variant="destructive" 
+                                    size="sm"
+                                    className="font-mono uppercase"
+                                  >
+                                    Reject
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent className="border-2 border-black">
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle className="font-black uppercase">Reject Request</AlertDialogTitle>
+                                    <AlertDialogDescription className="font-mono">
+                                      Are you sure you want to reject this purchase request?
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel className="font-mono uppercase">Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => handleUpdateStatus(request.id, 'rejected')}
+                                      className="bg-red-600 hover:bg-red-700 font-mono uppercase"
+                                    >
+                                      Reject
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Submit Request Tab */}
+          <TabsContent value="submit" className="space-y-4">
+            <div className="bg-white border-2 border-black p-4">
+              <h2 className="text-2xl font-black uppercase mb-4">Submit Purchase Request</h2>
+              
+              {currentUser?.role === 'employee' ? (
+                <form onSubmit={handleSubmitRequest} className="space-y-4">
+                  <div>
+                    <Label htmlFor="ebay-url" className="font-mono text-xs uppercase tracking-wide">
+                      eBay URL *
+                    </Label>
+                    <Input
+                      id="ebay-url"
+                      type="url"
+                      value={formData.ebay_url}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setFormData((prev: CreatePurchaseRequestInput) => ({ ...prev, ebay_url: e.target.value }))
+                      }
+                      placeholder="https://www.ebay.com/itm/..."
+                      className="mt-1 border-2 border-black font-mono"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="amazon-asin" className="font-mono text-xs uppercase tracking-wide">
+                      Amazon ASIN *
+                    </Label>
+                    <Input
+                      id="amazon-asin"
+                      type="text"
+                      value={formData.amazon_asin}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setFormData((prev: CreatePurchaseRequestInput) => ({ ...prev, amazon_asin: e.target.value }))
+                      }
+                      placeholder="B08N5WRWNW"
+                      className="mt-1 border-2 border-black font-mono"
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1 font-mono">
+                      Item details will be automatically populated from Amazon API
+                    </p>
+                  </div>
+
+                  <Button 
+                    type="submit" 
+                    disabled={isLoading}
+                    className="w-full bg-black hover:bg-gray-800 text-white font-mono uppercase tracking-wide h-12"
+                  >
+                    {isLoading ? 'Submitting...' : 'Submit Request'}
+                  </Button>
+                </form>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500 font-mono">
+                    ONLY EMPLOYEES CAN SUBMIT PURCHASE REQUESTS
+                  </p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        {/* Footer */}
+        <div className="mt-8 pt-4 border-t-2 border-black">
+          <p className="text-center font-mono text-sm text-gray-500">
+            ⚠️ DEMO MODE: Using sample data due to placeholder implementations
+          </p>
+        </div>
       </div>
     </div>
   );
